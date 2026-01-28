@@ -391,26 +391,16 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════════
 log_war "⚔️ 家老・足軽の陣を構築中（9名配備）..."
 
-# 最初のペイン作成
-tmux new-session -d -s "$SESSION_MULTI" -n "agents"
+# 最初のペイン作成（十分なサイズを確保して分割時のエラーを防ぐ）
+tmux new-session -d -s "$SESSION_MULTI" -n "agents" -x 200 -y 50
 
 # 3x3グリッド作成（合計9ペイン）
-# 最初に3列に分割
-tmux split-window -h -t "${SESSION_MULTI}:agents"
-tmux split-window -h -t "${SESSION_MULTI}:agents"
-
-# 各列を3行に分割
-tmux select-pane -t "${SESSION_MULTI}:agents.0"
-tmux split-window -v
-tmux split-window -v
-
-tmux select-pane -t "${SESSION_MULTI}:agents.3"
-tmux split-window -v
-tmux split-window -v
-
-tmux select-pane -t "${SESSION_MULTI}:agents.6"
-tmux split-window -v
-tmux split-window -v
+# 8回分割して9ペインを作成
+# 各分割後にtiledレイアウトを適用して、ペインサイズを均等化し次の分割を可能にする
+for i in {1..8}; do
+    tmux split-window -t "${SESSION_MULTI}:agents"
+    tmux select-layout -t "${SESSION_MULTI}:agents" tiled
+done
 
 # ペインタイトル設定（0: karo, 1-8: ashigaru1-8）
 PANE_TITLES=("karo" "ashigaru1" "ashigaru2" "ashigaru3" "ashigaru4" "ashigaru5" "ashigaru6" "ashigaru7" "ashigaru8")
