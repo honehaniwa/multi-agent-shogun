@@ -138,33 +138,49 @@ fi
 # ============================================================
 log_step "STEP 3: Node.js チェック"
 
+# n (Node version manager) でインストールされた場合のパスを確認
+if [ -d "$HOME/.n/bin" ]; then
+    export PATH="$HOME/.n/bin:$PATH"
+fi
+
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node -v)
     log_success "Node.js がインストール済みです ($NODE_VERSION)"
 
-    # バージョンチェック（18以上推奨）
+    # バージョンチェック（18以上必須 - Gemini MCP要件）
     NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1 | tr -d 'v')
     if [ "$NODE_MAJOR" -lt 18 ]; then
-        log_warn "Node.js 18以上を推奨します（現在: $NODE_VERSION）"
-        RESULTS+=("Node.js: OK (v$NODE_MAJOR - 要アップグレード推奨)")
+        log_warn "Node.js 18以上が必須です（現在: $NODE_VERSION）"
+        log_warn "Gemini MCP（軍師）を使用するには v18+ が必要です"
+        echo ""
+        echo "  アップグレード方法（n を使用）:"
+        echo "     npm install -g n"
+        echo "     export N_PREFIX=\"\$HOME/.n\""
+        echo "     n lts"
+        echo "     export PATH=\"\$HOME/.n/bin:\$PATH\""
+        echo ""
+        RESULTS+=("Node.js: OK (v$NODE_MAJOR - 要アップグレード必須)")
+        HAS_ERROR=true
     else
         RESULTS+=("Node.js: OK ($NODE_VERSION)")
     fi
 else
     log_warn "Node.js がインストールされていません"
     echo ""
-    echo "  Node.js のインストール方法（推奨: nvm を使用）:"
+    echo "  Node.js のインストール方法（推奨: n を使用）:"
     echo ""
-    echo "  1. nvm をインストール:"
+    echo "  1. npm経由で n をインストール（既存のnpmがある場合）:"
+    echo "     npm install -g n"
+    echo "     export N_PREFIX=\"\$HOME/.n\""
+    echo "     n lts"
+    echo "     export PATH=\"\$HOME/.n/bin:\$PATH\""
+    echo ""
+    echo "  2. または nvm を使用:"
     echo "     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash"
-    echo ""
-    echo "  2. ターミナルを再起動後:"
     echo "     nvm install 20"
     echo "     nvm use 20"
     echo ""
-    echo "  または、直接インストール（Ubuntu）:"
-    echo "     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
-    echo "     sudo apt-get install -y nodejs"
+    echo "  ※ Gemini MCP（軍師）を使用するには Node.js v18+ が必須です"
     echo ""
     RESULTS+=("Node.js: 未インストール")
     HAS_ERROR=true
@@ -360,9 +376,39 @@ log_info "足軽レポートファイル (1-8) を確認/作成しました"
 RESULTS+=("キューファイル: OK")
 
 # ============================================================
-# STEP 8: スクリプト実行権限付与
+# STEP 8: Gemini MCP（軍師）セットアップ確認
 # ============================================================
-log_step "STEP 8: 実行権限設定"
+log_step "STEP 8: Gemini MCP（軍師）セットアップ確認"
+
+# Gemini MCP の設定確認
+if [ -f "$HOME/.claude.json" ]; then
+    if grep -q '"gemini"' "$HOME/.claude.json" 2>/dev/null; then
+        log_success "Gemini MCP（軍師）が設定済みです"
+        RESULTS+=("Gemini MCP: 設定済み")
+    else
+        log_warn "Gemini MCP（軍師）が未設定です"
+        echo ""
+        echo "  軍師（Gemini）を有効にするには:"
+        echo ""
+        echo "  1. Google AI Studio で API キーを取得:"
+        echo "     https://aistudio.google.com/apikey"
+        echo ""
+        echo "  2. Claude Code で Gemini MCP を追加:"
+        echo "     claude mcp add gemini -s user -- env GEMINI_API_KEY=YOUR_KEY npx -y @rlabs-inc/gemini-mcp"
+        echo ""
+        echo "  ※ Node.js v18+ が必要です"
+        echo ""
+        RESULTS+=("Gemini MCP: 未設定（オプション）")
+    fi
+else
+    log_info "Claude 設定ファイルがまだ存在しません（初回起動後に作成されます）"
+    RESULTS+=("Gemini MCP: 未確認（Claude初回起動後に設定）")
+fi
+
+# ============================================================
+# STEP 9: スクリプト実行権限付与
+# ============================================================
+log_step "STEP 9: 実行権限設定"
 
 SCRIPTS=(
     "setup.sh"

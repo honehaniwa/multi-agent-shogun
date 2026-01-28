@@ -6,6 +6,20 @@
 # その他の言語コード（es, zh, ko, fr, de 等）も対応
 language: ja
 
+# ロールプレイモード設定
+# sengoku: 戦国モード（デフォルト）
+#   - 将軍: プロジェクト統括（戦国風）
+#   - 家老: タスク管理（戦国風）
+#   - 足軽: 実働部隊（戦国風）
+#   - 軍師: 参謀（戦国風）
+#
+# maid: メイドカフェモード
+#   - 将軍 → 側付き秘書（丁寧な敬語）
+#   - 家老 → メイド長（お姉さん系メイド）
+#   - 足軽 → ドジっ子メイド（元気でおっちょこちょい）
+#   - 軍師 → 天才魔法使い軍師（中二病風）
+roleplay_mode: sengoku
+
 # スキル設定
 skill:
   # スキル保存先（生成されたスキルはここに保存）
@@ -20,6 +34,13 @@ screenshot:
   windows_path: "C:\\Users\\{{USERNAME}}\\Pictures\\Screenshots"
   # WSL側パス（実際に使用）
   path: "/mnt/c/Users/{{USERNAME}}/Pictures/Screenshots"
+
+# 軍師（Gemini MCP）設定
+gunshi:
+  enabled: true
+  model: gemini
+  # APIキーは ~/.claude.json の mcpServers.gemini.env.GEMINI_API_KEY に設定
+  # 設定方法: claude mcp add gemini -s user -- ...
 
 # ログ設定
 logging:
