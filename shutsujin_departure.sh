@@ -3,15 +3,37 @@
 # Daily Deployment Script for Multi-Agent Orchestration System
 #
 # 使用方法:
-#   ./shutsujin_departure.sh           # 全エージェント起動（通常）
-#   ./shutsujin_departure.sh -s        # セットアップのみ（Claude起動なし）
-#   ./shutsujin_departure.sh -h        # ヘルプ表示
+#   ./shutsujin_departure.sh                    # 全エージェント起動（通常）
+#   ./shutsujin_departure.sh -p myproject       # プロジェクト名を指定して起動
+#   ./shutsujin_departure.sh -s                 # セットアップのみ（Claude起動なし）
+#   ./shutsujin_departure.sh -h                 # ヘルプ表示
+#
+# submodule として導入した場合:
+#   ./.shogun/shutsujin_departure.sh -p myproject
 
 set -e
 
 # スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# submodule対応: プロジェクトルートの自動検出
+# ═══════════════════════════════════════════════════════════════════════════════
+# 環境変数でオーバーライド可能
+if [ -n "$SHOGUN_PROJECT_ROOT" ]; then
+    PROJECT_ROOT="$SHOGUN_PROJECT_ROOT"
+elif [ "$(basename "$SCRIPT_DIR")" = ".shogun" ]; then
+    # .shogun/ ディレクトリから実行された場合、親ディレクトリがプロジェクトルート
+    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+else
+    # スタンドアロン実行
+    PROJECT_ROOT="$SCRIPT_DIR"
+fi
+
+# Shogunシステムのディレクトリ（指示書等がある場所）
+SHOGUN_DIR="$SCRIPT_DIR"
+
+cd "$SHOGUN_DIR"
 
 # n (Node version manager) でインストールされた場合のパスを設定
 if [ -d "$HOME/.n/bin" ]; then
@@ -43,9 +65,14 @@ log_war() {
 # ═══════════════════════════════════════════════════════════════════════════════
 SETUP_ONLY=false
 OPEN_TERMINAL=false
+PROJECT_NAME=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        -p|--project)
+            PROJECT_NAME="$2"
+            shift 2
+            ;;
         -s|--setup-only)
             SETUP_ONLY=true
             shift
@@ -61,19 +88,23 @@ while [[ $# -gt 0 ]]; do
             echo "使用方法: ./shutsujin_departure.sh [オプション]"
             echo ""
             echo "オプション:"
-            echo "  -s, --setup-only  tmuxセッションのセットアップのみ（Claude起動なし）"
-            echo "  -t, --terminal    Windows Terminal で新しいタブを開く"
-            echo "  -h, --help        このヘルプを表示"
+            echo "  -p, --project NAME  プロジェクト名を指定（セッション名に使用）"
+            echo "  -s, --setup-only    tmuxセッションのセットアップのみ（Claude起動なし）"
+            echo "  -t, --terminal      Windows Terminal で新しいタブを開く"
+            echo "  -h, --help          このヘルプを表示"
             echo ""
             echo "例:"
-            echo "  ./shutsujin_departure.sh      # 全エージェント起動（通常の出陣）"
-            echo "  ./shutsujin_departure.sh -s   # セットアップのみ（手動でClaude起動）"
-            echo "  ./shutsujin_departure.sh -t   # 全エージェント起動 + ターミナルタブ展開"
+            echo "  ./shutsujin_departure.sh              # 全エージェント起動（通常の出陣）"
+            echo "  ./shutsujin_departure.sh -p myapp     # プロジェクト名を指定して起動"
+            echo "  ./shutsujin_departure.sh -s           # セットアップのみ（手動でClaude起動）"
+            echo "  ./shutsujin_departure.sh -t           # 全エージェント起動 + ターミナルタブ展開"
             echo ""
-            echo "エイリアス:"
-            echo "  csst  → cd /mnt/c/tools/multi-agent-shogun && ./shutsujin_departure.sh"
-            echo "  css   → tmux attach-session -t shogun"
-            echo "  csm   → tmux attach-session -t multiagent"
+            echo "submodule として導入した場合:"
+            echo "  cd /path/to/your-project"
+            echo "  ./.shogun/shutsujin_departure.sh -p your-project"
+            echo ""
+            echo "環境変数:"
+            echo "  SHOGUN_PROJECT_ROOT  プロジェクトルートを明示的に指定"
             echo ""
             exit 0
             ;;
@@ -84,6 +115,24 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# プロジェクト名が指定されていない場合、ディレクトリ名から自動生成
+if [ -z "$PROJECT_NAME" ]; then
+    PROJECT_NAME=$(basename "$PROJECT_ROOT")
+fi
+
+# セッション名の設定（プロジェクト名を含める）
+# デフォルト: shogun, multiagent
+# プロジェクト指定時: shogun-myapp, multiagent-myapp
+if [ "$PROJECT_NAME" = "$(basename "$SHOGUN_DIR")" ] && [ "$PROJECT_ROOT" = "$SHOGUN_DIR" ]; then
+    # スタンドアロン実行（従来通り）
+    SESSION_SHOGUN="shogun"
+    SESSION_MULTI="multiagent"
+else
+    # submodule または プロジェクト名指定
+    SESSION_SHOGUN="shogun-${PROJECT_NAME}"
+    SESSION_MULTI="multiagent-${PROJECT_NAME}"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 出陣バナー表示（CC0ライセンスASCIIアート使用）
@@ -159,11 +208,20 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# プロジェクト情報表示
+# ═══════════════════════════════════════════════════════════════════════════════
+log_info "📂 プロジェクト: $PROJECT_NAME"
+log_info "📂 プロジェクトルート: $PROJECT_ROOT"
+log_info "📂 Shogunシステム: $SHOGUN_DIR"
+log_info "📺 セッション名: $SESSION_SHOGUN / $SESSION_MULTI"
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # STEP 1: 既存セッションクリーンアップ
 # ═══════════════════════════════════════════════════════════════════════════════
 log_info "🧹 既存の陣を撤収中..."
-tmux kill-session -t multiagent 2>/dev/null && log_info "  └─ multiagent陣、撤収完了" || log_info "  └─ multiagent陣は存在せず"
-tmux kill-session -t shogun 2>/dev/null && log_info "  └─ shogun本陣、撤収完了" || log_info "  └─ shogun本陣は存在せず"
+tmux kill-session -t "$SESSION_MULTI" 2>/dev/null && log_info "  └─ ${SESSION_MULTI}陣、撤収完了" || log_info "  └─ ${SESSION_MULTI}陣は存在せず"
+tmux kill-session -t "$SESSION_SHOGUN" 2>/dev/null && log_info "  └─ ${SESSION_SHOGUN}本陣、撤収完了" || log_info "  └─ ${SESSION_SHOGUN}本陣は存在せず"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STEP 2: 必要なディレクトリを作成
@@ -311,23 +369,23 @@ echo ""
 log_war "⚔️ 家老・足軽の陣を構築中（9名配備）..."
 
 # 最初のペイン作成
-tmux new-session -d -s multiagent -n "agents"
+tmux new-session -d -s "$SESSION_MULTI" -n "agents"
 
 # 3x3グリッド作成（合計9ペイン）
 # 最初に3列に分割
-tmux split-window -h -t "multiagent:agents"
-tmux split-window -h -t "multiagent:agents"
+tmux split-window -h -t "${SESSION_MULTI}:agents"
+tmux split-window -h -t "${SESSION_MULTI}:agents"
 
 # 各列を3行に分割
-tmux select-pane -t "multiagent:agents.0"
+tmux select-pane -t "${SESSION_MULTI}:agents.0"
 tmux split-window -v
 tmux split-window -v
 
-tmux select-pane -t "multiagent:agents.3"
+tmux select-pane -t "${SESSION_MULTI}:agents.3"
 tmux split-window -v
 tmux split-window -v
 
-tmux select-pane -t "multiagent:agents.6"
+tmux select-pane -t "${SESSION_MULTI}:agents.6"
 tmux split-window -v
 tmux split-window -v
 
@@ -336,8 +394,8 @@ PANE_TITLES=("karo" "ashigaru1" "ashigaru2" "ashigaru3" "ashigaru4" "ashigaru5" 
 PANE_COLORS=("1;31" "1;34" "1;34" "1;34" "1;34" "1;34" "1;34" "1;34" "1;34")  # karo: 赤, ashigaru: 青
 
 for i in {0..8}; do
-    tmux select-pane -t "multiagent:agents.$i" -T "${PANE_TITLES[$i]}"
-    tmux send-keys -t "multiagent:agents.$i" "cd $(pwd) && export PS1='(\[\033[${PANE_COLORS[$i]}m\]${PANE_TITLES[$i]}\[\033[0m\]) \[\033[1;32m\]\w\[\033[0m\]\$ ' && clear" Enter
+    tmux select-pane -t "${SESSION_MULTI}:agents.$i" -T "${PANE_TITLES[$i]}"
+    tmux send-keys -t "${SESSION_MULTI}:agents.$i" "cd '$PROJECT_ROOT' && export PS1='(\[\033[${PANE_COLORS[$i]}m\]${PANE_TITLES[$i]}\[\033[0m\]) \[\033[1;32m\]\w\[\033[0m\]\$ ' && clear" Enter
 done
 
 log_success "  └─ 家老・足軽の陣、構築完了"
@@ -347,9 +405,9 @@ echo ""
 # STEP 6: shogunセッション作成（1ペイン）
 # ═══════════════════════════════════════════════════════════════════════════════
 log_war "👑 将軍の本陣を構築中..."
-tmux new-session -d -s shogun -n "main"
-tmux send-keys -t shogun:main "cd $(pwd) && export PS1='(\[\033[1;35m\]将軍\[\033[0m\]) \[\033[1;32m\]\w\[\033[0m\]\$ ' && clear" Enter
-tmux select-pane -t shogun:main.0 -P 'bg=#002b36'  # 将軍の Solarized Dark
+tmux new-session -d -s "$SESSION_SHOGUN" -n "main"
+tmux send-keys -t ${SESSION_SHOGUN}:main "cd '$PROJECT_ROOT' && export PS1='(\[\033[1;35m\]将軍\[\033[0m\]) \[\033[1;32m\]\w\[\033[0m\]\$ ' && clear" Enter
+tmux select-pane -t ${SESSION_SHOGUN}:main.0 -P 'bg=#002b36'  # 将軍の Solarized Dark
 
 log_success "  └─ 将軍の本陣、構築完了"
 echo ""
@@ -361,8 +419,8 @@ if [ "$SETUP_ONLY" = false ]; then
     log_war "👑 全軍に Claude Code を召喚中..."
 
     # 将軍
-    tmux send-keys -t shogun "MAX_THINKING_TOKENS=0 claude --model opus --dangerously-skip-permissions"
-    tmux send-keys -t shogun Enter
+    tmux send-keys -t "$SESSION_SHOGUN" "MAX_THINKING_TOKENS=0 claude --model opus --dangerously-skip-permissions"
+    tmux send-keys -t "$SESSION_SHOGUN" Enter
     log_info "  └─ 将軍、召喚完了"
 
     # 少し待機（安定のため）
@@ -370,8 +428,8 @@ if [ "$SETUP_ONLY" = false ]; then
 
     # 家老 + 足軽（9ペイン）
     for i in {0..8}; do
-        tmux send-keys -t "multiagent:agents.$i" "claude --dangerously-skip-permissions"
-        tmux send-keys -t "multiagent:agents.$i" Enter
+        tmux send-keys -t "${SESSION_MULTI}:agents.$i" "claude --dangerously-skip-permissions"
+        tmux send-keys -t "${SESSION_MULTI}:agents.$i" Enter
     done
     log_info "  └─ 家老・足軽、召喚完了"
 
@@ -454,24 +512,24 @@ NINJA_EOF
 
     # 将軍に指示書を読み込ませる
     log_info "  └─ 将軍に指示書を伝達中..."
-    tmux send-keys -t shogun "instructions/shogun.md を読んで役割を理解せよ。"
+    tmux send-keys -t "$SESSION_SHOGUN" "instructions/shogun.md を読んで役割を理解せよ。"
     sleep 0.5
-    tmux send-keys -t shogun Enter
+    tmux send-keys -t "$SESSION_SHOGUN" Enter
 
     # 家老に指示書を読み込ませる
     sleep 2
     log_info "  └─ 家老に指示書を伝達中..."
-    tmux send-keys -t "multiagent:agents.0" "instructions/karo.md を読んで役割を理解せよ。"
+    tmux send-keys -t "${SESSION_MULTI}:agents.0" "instructions/karo.md を読んで役割を理解せよ。"
     sleep 0.5
-    tmux send-keys -t "multiagent:agents.0" Enter
+    tmux send-keys -t "${SESSION_MULTI}:agents.0" Enter
 
     # 足軽に指示書を読み込ませる（1-8）
     sleep 2
     log_info "  └─ 足軽に指示書を伝達中..."
     for i in {1..8}; do
-        tmux send-keys -t "multiagent:agents.$i" "instructions/ashigaru.md を読んで役割を理解せよ。汝は足軽${i}号である。"
+        tmux send-keys -t "${SESSION_MULTI}:agents.$i" "instructions/ashigaru.md を読んで役割を理解せよ。汝は足軽${i}号である。"
         sleep 0.3
-        tmux send-keys -t "multiagent:agents.$i" Enter
+        tmux send-keys -t "${SESSION_MULTI}:agents.$i" Enter
         sleep 0.5
     done
 
@@ -528,7 +586,7 @@ if [ "$SETUP_ONLY" = true ]; then
     echo "  │                                                          │"
     echo "  │  # 家老・足軽を一斉召喚                                   │"
     echo "  │  for i in {0..8}; do \\                                   │"
-    echo "  │    tmux send-keys -t multiagent:agents.\$i \\                   │"
+    echo "  │    tmux send-keys -t ${SESSION_MULTI}:agents.\$i \\                   │"
     echo "  │      'claude --dangerously-skip-permissions' Enter       │"
     echo "  │  done                                                    │"
     echo "  └──────────────────────────────────────────────────────────┘"
@@ -538,10 +596,10 @@ fi
 echo "  次のステップ:"
 echo "  ┌──────────────────────────────────────────────────────────┐"
 echo "  │  将軍の本陣にアタッチして命令を開始:                      │"
-echo "  │     tmux attach-session -t shogun   (または: css)        │"
+echo "  │     tmux attach-session -t $SESSION_SHOGUN"
 echo "  │                                                          │"
 echo "  │  家老・足軽の陣を確認する:                                │"
-echo "  │     tmux attach-session -t multiagent   (または: csm)    │"
+echo "  │     tmux attach-session -t $SESSION_MULTI"
 echo "  │                                                          │"
 echo "  │  ※ 各エージェントは指示書を読み込み済み。                 │"
 echo "  │    すぐに命令を開始できます。                             │"
@@ -560,7 +618,7 @@ if [ "$OPEN_TERMINAL" = true ]; then
 
     # Windows Terminal が利用可能か確認
     if command -v wt.exe &> /dev/null; then
-        wt.exe -w 0 new-tab wsl.exe -e bash -c "tmux attach-session -t shogun" \; new-tab wsl.exe -e bash -c "tmux attach-session -t multiagent"
+        wt.exe -w 0 new-tab wsl.exe -e bash -c "tmux attach-session -t $SESSION_SHOGUN" \; new-tab wsl.exe -e bash -c "tmux attach-session -t $SESSION_MULTI"
         log_success "  └─ ターミナルタブ展開完了"
     else
         log_info "  └─ wt.exe が見つかりません。手動でアタッチしてください。"
