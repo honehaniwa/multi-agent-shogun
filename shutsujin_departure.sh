@@ -63,15 +63,16 @@ log_war() {
 # ═══════════════════════════════════════════════════════════════════════════════
 # Claude Code 起動完了待機関数
 # ═══════════════════════════════════════════════════════════════════════════════
-# Claude Code が起動すると ">" プロンプトが表示される。これを検出して待機する。
+# Claude Code が起動すると "❯" プロンプトが表示される。これを検出して待機する。
+# また、"bypass permissions" の表示も起動完了の指標として使用する。
 wait_for_claude_ready() {
     local pane=$1
     local max_wait=${2:-60}  # デフォルト60秒
     local wait_count=0
 
     while [ $wait_count -lt $max_wait ]; do
-        # Claude Codeが起動すると ">" プロンプトが表示される
-        if tmux capture-pane -t "$pane" -p 2>/dev/null | grep -q '^>'; then
+        # Claude Codeが起動すると "❯" プロンプトまたは "bypass permissions" が表示される
+        if tmux capture-pane -t "$pane" -p 2>/dev/null | grep -qE '(^❯|bypass permissions)'; then
             return 0
         fi
         sleep 1
