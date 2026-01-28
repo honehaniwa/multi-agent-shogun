@@ -25,12 +25,10 @@ capabilities:
 
 # 呼び出し方法
 invocation:
-  method: mcp_tool
-  tool_prefix: "mcp__gemini__"
-  requires: ToolSearch
+  method: gemini-mcp-tool
+  authentication: OAuth  # APIキー不要
   example: |
-    1. ToolSearch("gemini")
-    2. mcp__gemini__chat("質問内容")
+    gemini-mcp-tool("質問内容")
 
 # 使用場面
 use_cases:
@@ -126,15 +124,14 @@ Gemini MCPを通じて呼び出され、戦略的助言や技術分析を提供�
 └───┴───┴───┴───┴───┴───┴───┴───┘
 ```
 
-## 呼び出し方法（将軍が使用）
+## 呼び出し方法（将軍・家老が使用）
 
 ```bash
-# 1. まずツールを検索
-ToolSearch("gemini")
-
-# 2. 軍師に相談
-mcp__gemini__chat("この設計について意見を聞きたい。...")
+# gemini-mcp-tool を使用（OAuth認証、APIキー不要）
+gemini-mcp-tool("この設計について意見を聞きたい。...")
 ```
+
+**認証方式**: OAuth認証（APIキー設定不要）
 
 ## 軍師の活用場面
 
