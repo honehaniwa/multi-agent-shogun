@@ -61,6 +61,28 @@ log_war() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Claude Code 起動完了待機関数
+# ═══════════════════════════════════════════════════════════════════════════════
+# Claude Code が起動すると ">" プロンプトが表示される。これを検出して待機する。
+wait_for_claude_ready() {
+    local pane=$1
+    local max_wait=${2:-60}  # デフォルト60秒
+    local wait_count=0
+
+    while [ $wait_count -lt $max_wait ]; do
+        # Claude Codeが起動すると ">" プロンプトが表示される
+        if tmux capture-pane -t "$pane" -p 2>/dev/null | grep -q '^>'; then
+            return 0
+        fi
+        sleep 1
+        ((wait_count++))
+    done
+
+    log_info "  ⚠️  タイムアウト: $pane のClaude Code起動待機（${max_wait}秒）"
+    return 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # オプション解析
 # ═══════════════════════════════════════════════════════════════════════════════
 SETUP_ONLY=false
@@ -507,30 +529,44 @@ NINJA_EOF
     echo -e "                               \033[0;36m[ASCII Art: syntax-samurai/ryu - CC0 1.0 Public Domain]\033[0m"
     echo ""
 
-    echo "  Claude Code の起動を待機中（15秒）..."
-    sleep 15
+    echo "  Claude Code の起動を待機中..."
+    echo ""
 
-    # 将軍に指示書を読み込ませる
-    log_info "  └─ 将軍に指示書を伝達中..."
-    tmux send-keys -t "$SESSION_SHOGUN" "instructions/shogun.md を読んで役割を理解せよ。"
-    sleep 0.5
-    tmux send-keys -t "$SESSION_SHOGUN" Enter
-
-    # 家老に指示書を読み込ませる
-    sleep 2
-    log_info "  └─ 家老に指示書を伝達中..."
-    tmux send-keys -t "${SESSION_MULTI}:agents.0" "instructions/karo.md を読んで役割を理解せよ。"
-    sleep 0.5
-    tmux send-keys -t "${SESSION_MULTI}:agents.0" Enter
-
-    # 足軽に指示書を読み込ませる（1-8）
-    sleep 2
-    log_info "  └─ 足軽に指示書を伝達中..."
-    for i in {1..8}; do
-        tmux send-keys -t "${SESSION_MULTI}:agents.$i" "instructions/ashigaru.md を読んで役割を理解せよ。汝は足軽${i}号である。"
-        sleep 0.3
-        tmux send-keys -t "${SESSION_MULTI}:agents.$i" Enter
+    # 将軍の起動を待機して指示書を読み込ませる
+    log_info "  └─ 将軍のClaude Code起動を待機中..."
+    if wait_for_claude_ready "$SESSION_SHOGUN" 90; then
+        log_success "  └─ 将軍、起動完了"
+        log_info "  └─ 将軍に指示書を伝達中..."
+        tmux send-keys -t "$SESSION_SHOGUN" "instructions/shogun.md を読んで役割を理解せよ。"
         sleep 0.5
+        tmux send-keys -t "$SESSION_SHOGUN" Enter
+    else
+        log_info "  └─ 将軍の起動タイムアウト。手動で指示書を読み込ませてください。"
+    fi
+
+    # 家老の起動を待機して指示書を読み込ませる
+    log_info "  └─ 家老のClaude Code起動を待機中..."
+    if wait_for_claude_ready "${SESSION_MULTI}:agents.0" 90; then
+        log_success "  └─ 家老、起動完了"
+        log_info "  └─ 家老に指示書を伝達中..."
+        tmux send-keys -t "${SESSION_MULTI}:agents.0" "instructions/karo.md を読んで役割を理解せよ。"
+        sleep 0.5
+        tmux send-keys -t "${SESSION_MULTI}:agents.0" Enter
+    else
+        log_info "  └─ 家老の起動タイムアウト。手動で指示書を読み込ませてください。"
+    fi
+
+    # 足軽の起動を待機して指示書を読み込ませる（1-8）
+    log_info "  └─ 足軽のClaude Code起動を待機中..."
+    for i in {1..8}; do
+        if wait_for_claude_ready "${SESSION_MULTI}:agents.$i" 90; then
+            log_success "  └─ 足軽${i}号、起動完了"
+            tmux send-keys -t "${SESSION_MULTI}:agents.$i" "instructions/ashigaru.md を読んで役割を理解せよ。汝は足軽${i}号である。"
+            sleep 0.3
+            tmux send-keys -t "${SESSION_MULTI}:agents.$i" Enter
+        else
+            log_info "  └─ 足軽${i}号の起動タイムアウト。手動で指示書を読み込ませてください。"
+        fi
     done
 
     log_success "✅ 全軍に指示書伝達完了"
